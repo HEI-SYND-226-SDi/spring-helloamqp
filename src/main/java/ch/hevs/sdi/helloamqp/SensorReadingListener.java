@@ -17,10 +17,10 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class SensorReadingListener {
-    private Log log = LogFactory.getLog(SensorReadingListener.class);
+    private final Log log = LogFactory.getLog(SensorReadingListener.class);
 
     private @Value("${ch.hevs.sdi.helloamqp.influx-database}") String database;
-    private InfluxDB influx;
+    private final InfluxDB influx;
 
     public SensorReadingListener(InfluxDB influx) {
         this.influx = influx;
@@ -31,20 +31,21 @@ public class SensorReadingListener {
         exchange = @Exchange(value = "amq.topic", type = ExchangeTypes.TOPIC),
         key = "sdi42.*.sensorreading"
     ))
-    private void onSensorMeasure(@Payload SensorReading reading, Message message) {
+    private void onSensorReading(@Payload SensorReading reading, Message message) {
         String sensorId = message.getMessageProperties().getReceivedRoutingKey().split("\\.")[1];
-        log.info("New Sensor measure of " + sensorId + "-> " + reading.toString());
+        log.info("New Sensor reading: " + sensorId + "-> " + reading.toString());
 
         try {
             influx.setDatabase(database);
             influx.write(
                 Point.measurement("sensorreading")
                     .tag("sensorId", sensorId)
+                    .addField("location", reading.getLocation())
                     .addField("temperature", reading.getTemperature())
                     .addField("humidity", reading.getHumidity()).build()
             );
         } catch (InfluxDBException e) {
-            e.printStackTrace();
+            log.error(e);
         }
     }
 }
